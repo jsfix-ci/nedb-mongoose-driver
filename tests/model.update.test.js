@@ -1158,6 +1158,9 @@ describe('model: update:', () => {
         ++numPres;
         next();
       });
+      /* TODO: JSFIX could not patch the breaking change:
+      Post hooks now get flow control, which means async post save hooks and child document post save hooks execute before your save() callback.
+      Suggested fix: The post hook will now execute after (rather than before) the operation it hooks. In many cases this change is harmless, but you may want to ensure that the hook is not dependent on the hooked operation not having taken place. */
       band.post('update', () => {
         ++numPosts;
       });
@@ -1396,7 +1399,10 @@ describe('model: update:', () => {
           assert.ifError(err);
           Model.findById(m._id).exec((error, doc) => {
             assert.ifError(error);
-            assert.deepEqual(doc.toObject({ virtuals: false }), {
+            assert.deepEqual(/* TODO: JSFIX could not patch the breaking change:
+            BREAKING CHANGE: toObject() and toJSON() option parameter merges with defaults rather than overwriting #4131
+            Suggested fix: The options provided to toObject and toJson are now merged with the schema-wide options. If you depend on some schema-wide option properties being overwritten, then you must set these properties explicitly on the options object to this call. */
+            doc.toObject({ virtuals: false }), {
               _id: m._id,
               name: 'test',
             });
@@ -2078,9 +2084,13 @@ describe('model: update:', () => {
     it('runs validation on Mixed properties of embedded arrays during updates (gh-4441)', (done) => {
       const A = new Schema({ str: {} });
       let validateCalls = 0;
-      A.path('str').validate((val, next) => {
+      A.path('str').validate(function (arg) {
+          return new Promise(resolve => {
+              ((val, next) => {
         ++validateCalls;
         next();
+      }).call(this, arg, resolve);
+          });
       });
 
       let B = new Schema({ a: [A] });
